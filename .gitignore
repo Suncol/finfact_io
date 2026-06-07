@@ -1,0 +1,11 @@
+.cache/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+.DS_Store
+
+# Generated local datasets can be rebuilt from scripts and source data.
+data/**
+!data/
+!data/*/
+!data/*/README.md
