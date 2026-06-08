@@ -105,6 +105,60 @@ def build_generated_data_root(root: Path) -> Path:
         "date,index_code,member_symbol,weight,weight_unit,weight_snapshot_date,effective_date,days_since_snapshot,quality_status\n2024-01-03,000852.SH,000001.SZ,60,%,2023-12-29,2024-01-02,5,incomplete\n",
     )
 
+    csi300 = root / "csi300"
+    write_json(csi300 / "manifest.json", {"dataset": "csi300", "index_code": "000300.SH"})
+    write_csv(
+        csi300 / "data_quality.csv",
+        "dataset,check,status,severity,affected_date,observed_value,detail\ncsi300,row_count,pass,info,,2,ok\n",
+    )
+    write_csv(
+        csi300 / "index_daily.csv",
+        (
+            "date,index_code,index_name,open,high,low,close,previous_close,return,return_pct,total_return,total_return_available,volume,volume_unit,amount,amount_unit,source_kind,source_path,source_member\n"
+            "2024-01-02,000300.SH,沪深300,100,101,99,101,100,0.01,1,1001,True,10,手,20,千元,zip,path,member\n"
+            "2024-01-03,000300.SH,沪深300,101,102,100,102,101,0.0099,0.99,1010,True,11,手,22,千元,zip,path,member\n"
+        ),
+    )
+    write_csv(
+        csi300 / "constituent_weights_snapshots.csv",
+        (
+            "date,file_path,rows,index_code,snapshot_date,provider,quality_status,member_count,weight_sum,duplicate_member_rows\n"
+            "2023-12-29,constituent_weights_snapshots/2023-12-29.csv,2,000300.SH,2023-12-29,sse,complete,300,100,0\n"
+        ),
+    )
+    write_csv(
+        csi300 / "constituent_weights_snapshots" / "2023-12-29.csv",
+        (
+            "date,index_code,member_symbol,weight,weight_unit,snapshot_date,provider,quality_status,member_count,weight_sum,source_path,source_member\n"
+            "2023-12-29,000300.SH,000001.SZ,55,%,2023-12-29,sse,complete,300,100,path,member\n"
+            "2023-12-29,000300.SH,688001.SH,45,%,2023-12-29,sse,complete,300,100,path,member\n"
+        ),
+    )
+    write_csv(
+        csi300 / "constituent_weights_daily_asof.csv",
+        (
+            "date,file_path,rows,index_code,weight_snapshot_date,effective_date,days_since_snapshot,quality_status,weight_sum,duplicate_member_rows\n"
+            "2024-01-02,constituent_weights_daily_asof/2024-01-02.csv,2,000300.SH,2023-12-29,2024-01-02,4,complete,100,0\n"
+            "2024-01-03,constituent_weights_daily_asof/2024-01-03.csv,2,000300.SH,2023-12-29,2024-01-02,5,complete,100,0\n"
+        ),
+    )
+    write_csv(
+        csi300 / "constituent_weights_daily_asof" / "2024-01-02.csv",
+        (
+            "date,index_code,member_symbol,weight,weight_unit,weight_snapshot_date,effective_date,days_since_snapshot,quality_status\n"
+            "2024-01-02,000300.SH,000001.SZ,55,%,2023-12-29,2024-01-02,4,complete\n"
+            "2024-01-02,000300.SH,688001.SH,45,%,2023-12-29,2024-01-02,4,complete\n"
+        ),
+    )
+    write_csv(
+        csi300 / "constituent_weights_daily_asof" / "2024-01-03.csv",
+        (
+            "date,index_code,member_symbol,weight,weight_unit,weight_snapshot_date,effective_date,days_since_snapshot,quality_status\n"
+            "2024-01-03,000300.SH,000001.SZ,55,%,2023-12-29,2024-01-02,5,complete\n"
+            "2024-01-03,000300.SH,688001.SH,45,%,2023-12-29,2024-01-02,5,complete\n"
+        ),
+    )
+
     industry = root / "industry_sw_current_reference"
     write_json(industry / "manifest.json", {"dataset": "industry_sw_current_reference", "classification_mode": "static_current_reference"})
     write_csv(
@@ -220,6 +274,33 @@ def test_reads_csi1000_index_and_partitioned_weights(tmp_path: Path) -> None:
     ranged = reader.csi1000_weights_range("2024-01-02", "2024-01-03", members=["000001.SZ"])
     assert list(ranged["date"]) == [pd.Timestamp("2024-01-02"), pd.Timestamp("2024-01-03")]
     assert len(reader.csi1000_daily_asof_dates()) == 2
+
+
+def test_reads_generic_index_dataset_and_keeps_csi1000_wrappers(tmp_path: Path) -> None:
+    reader = DataDirectoryReader(build_generated_data_root(tmp_path / "data"))
+
+    index_daily = reader.index_daily("csi300", start="2024-01-03")
+    assert list(index_daily["index_code"]) == ["000300.SH"]
+    assert index_daily.iloc[0]["total_return"] == 1010
+
+    snapshots = reader.index_weight_snapshots("csi300")
+    assert list(snapshots["date"]) == [pd.Timestamp("2023-12-29")]
+    assert snapshots.iloc[0]["member_count"] == 300
+
+    snapshot_weights = reader.index_weights_by_snapshot("csi300", "2023-12-29", members=["688001.SH"])
+    assert list(snapshot_weights["member_symbol"]) == ["688001.SH"]
+    assert snapshot_weights.iloc[0]["weight"] == 45
+
+    asof_dates = reader.index_daily_asof_dates("csi300")
+    assert list(asof_dates["date"]) == [pd.Timestamp("2024-01-02"), pd.Timestamp("2024-01-03")]
+
+    asof = reader.index_weights_by_date("csi300", "2024-01-02")
+    assert len(asof) == 2
+    ranged = reader.index_weights_range("csi300", "2024-01-02", "2024-01-03", members=["000001.SZ"])
+    assert list(ranged["date"]) == [pd.Timestamp("2024-01-02"), pd.Timestamp("2024-01-03")]
+
+    assert reader.csi1000_index_daily().equals(reader.index_daily("csi1000"))
+    assert reader.csi1000_weight_snapshots().equals(reader.index_weight_snapshots("csi1000"))
 
 
 def test_reads_dimensions_joins_stocks_and_builds_matrices(tmp_path: Path) -> None:

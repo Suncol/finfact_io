@@ -16,6 +16,7 @@ reader = DataDirectoryReader("data")
 
 latest = reader.ashare_daily_by_date("2026-06-03", symbols=["000001.SZ"])
 weights = reader.csi1000_weights_by_date("2026-06-03")
+csi300_weights = reader.index_weights_by_date("csi300", "2026-06-03")
 industry = reader.sw_industry_snapshot(symbols=["000001.SZ"])
 board_counts = reader.listing_board_counts(scope="listed")
 
@@ -37,17 +38,24 @@ English-column CSV per trading day under `daily_metrics/YYYY-MM/YYYY-MM-DD.csv`,
 a date index, schema metadata, data quality checks, and a manifest. The default
 date range is 1990-12-19 through 2026-06-03.
 
-## CSI 1000 point-in-time dataset
+## CSI point-in-time index datasets
 
-Build the local CSI 1000 data directory from the configured index data root:
+Build local point-in-time index data directories from the configured index data
+root:
 
 ```bash
+.venv/bin/python scripts/build_csi300_dataset.py
+.venv/bin/python scripts/build_csi500_dataset.py
 .venv/bin/python scripts/build_csi1000_dataset.py
+.venv/bin/python scripts/build_csi2000_dataset.py
 ```
 
-The default output is `data/csi1000/` and includes daily index returns,
-date-partitioned constituent-weight snapshots, a date-partitioned daily
-point-in-time as-of expansion, quality checks, and a manifest.
+The default outputs are `data/csi300/`, `data/csi500/`, `data/csi1000/`, and
+`data/csi2000/`. Each directory includes daily index returns, date-partitioned
+constituent-weight snapshots, a date-partitioned daily point-in-time as-of
+expansion, quality checks, and a manifest. `DataDirectoryReader` exposes generic
+`index_*` methods for all four datasets while preserving the existing
+`csi1000_*` compatibility methods.
 
 ## SW2021 current industry reference
 

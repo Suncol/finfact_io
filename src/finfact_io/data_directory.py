@@ -147,18 +147,83 @@ class DataDirectoryReader:
             return pd.DataFrame()
         return pd.concat(frames, ignore_index=True).sort_values(["trade_date", "symbol"]).reset_index(drop=True)
 
+    def index_daily(
+        self,
+        dataset: str,
+        *,
+        start: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+    ) -> pd.DataFrame:
+        df = self.read_csv(dataset, "index_daily.csv")
+        return _filter_date_range(df, "date", start=start, end=end).reset_index(drop=True)
+
+    def index_weight_snapshots(self, dataset: str) -> pd.DataFrame:
+        df = self.read_csv(dataset, "constituent_weights_snapshots.csv")
+        return df.sort_values("date").reset_index(drop=True)
+
+    def index_weights_by_snapshot(
+        self,
+        dataset: str,
+        date: str | pd.Timestamp,
+        *,
+        members: Sequence[str] | None = None,
+    ) -> pd.DataFrame:
+        row = self._partition_row(
+            dataset,
+            "constituent_weights_snapshots.csv",
+            date,
+            date_column="date",
+        )
+        df = self.read_csv(dataset, str(row["file_path"]))
+        return _filter_symbols(df, column="member_symbol", symbols=members)
+
+    def index_daily_asof_dates(self, dataset: str) -> pd.DataFrame:
+        df = self.read_csv(dataset, "constituent_weights_daily_asof.csv")
+        return df.sort_values("date").reset_index(drop=True)
+
+    def index_weights_by_date(
+        self,
+        dataset: str,
+        date: str | pd.Timestamp,
+        *,
+        members: Sequence[str] | None = None,
+    ) -> pd.DataFrame:
+        row = self._partition_row(
+            dataset,
+            "constituent_weights_daily_asof.csv",
+            date,
+            date_column="date",
+        )
+        df = self.read_csv(dataset, str(row["file_path"]))
+        return _filter_symbols(df, column="member_symbol", symbols=members)
+
+    def index_weights_range(
+        self,
+        dataset: str,
+        start: str | pd.Timestamp,
+        end: str | pd.Timestamp,
+        *,
+        members: Sequence[str] | None = None,
+    ) -> pd.DataFrame:
+        index = _filter_date_range(self.index_daily_asof_dates(dataset), "date", start=start, end=end)
+        frames = [
+            self.index_weights_by_date(dataset, row["date"], members=members)
+            for _, row in index.iterrows()
+        ]
+        if not frames:
+            return pd.DataFrame()
+        return pd.concat(frames, ignore_index=True).sort_values(["date", "member_symbol"]).reset_index(drop=True)
+
     def csi1000_index_daily(
         self,
         *,
         start: str | pd.Timestamp | None = None,
         end: str | pd.Timestamp | None = None,
     ) -> pd.DataFrame:
-        df = self.read_csv(CSI1000_DATASET, "index_daily.csv")
-        return _filter_date_range(df, "date", start=start, end=end).reset_index(drop=True)
+        return self.index_daily(CSI1000_DATASET, start=start, end=end)
 
     def csi1000_weight_snapshots(self) -> pd.DataFrame:
-        df = self.read_csv(CSI1000_DATASET, "constituent_weights_snapshots.csv")
-        return df.sort_values("date").reset_index(drop=True)
+        return self.index_weight_snapshots(CSI1000_DATASET)
 
     def csi1000_weights_by_snapshot(
         self,
@@ -166,18 +231,10 @@ class DataDirectoryReader:
         *,
         members: Sequence[str] | None = None,
     ) -> pd.DataFrame:
-        row = self._partition_row(
-            CSI1000_DATASET,
-            "constituent_weights_snapshots.csv",
-            date,
-            date_column="date",
-        )
-        df = self.read_csv(CSI1000_DATASET, str(row["file_path"]))
-        return _filter_symbols(df, column="member_symbol", symbols=members)
+        return self.index_weights_by_snapshot(CSI1000_DATASET, date, members=members)
 
     def csi1000_daily_asof_dates(self) -> pd.DataFrame:
-        df = self.read_csv(CSI1000_DATASET, "constituent_weights_daily_asof.csv")
-        return df.sort_values("date").reset_index(drop=True)
+        return self.index_daily_asof_dates(CSI1000_DATASET)
 
     def csi1000_weights_by_date(
         self,
@@ -185,14 +242,7 @@ class DataDirectoryReader:
         *,
         members: Sequence[str] | None = None,
     ) -> pd.DataFrame:
-        row = self._partition_row(
-            CSI1000_DATASET,
-            "constituent_weights_daily_asof.csv",
-            date,
-            date_column="date",
-        )
-        df = self.read_csv(CSI1000_DATASET, str(row["file_path"]))
-        return _filter_symbols(df, column="member_symbol", symbols=members)
+        return self.index_weights_by_date(CSI1000_DATASET, date, members=members)
 
     def csi1000_weights_range(
         self,
@@ -201,11 +251,7 @@ class DataDirectoryReader:
         *,
         members: Sequence[str] | None = None,
     ) -> pd.DataFrame:
-        index = _filter_date_range(self.csi1000_daily_asof_dates(), "date", start=start, end=end)
-        frames = [self.csi1000_weights_by_date(row["date"], members=members) for _, row in index.iterrows()]
-        if not frames:
-            return pd.DataFrame()
-        return pd.concat(frames, ignore_index=True).sort_values(["date", "member_symbol"]).reset_index(drop=True)
+        return self.index_weights_range(CSI1000_DATASET, start, end, members=members)
 
     def sw_industry_snapshot(self, *, symbols: Sequence[str] | None = None) -> pd.DataFrame:
         df = self.read_csv(SW_INDUSTRY_DATASET, "current_snapshot.csv")
