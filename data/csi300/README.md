@@ -1,6 +1,6 @@
-# 中证1000数据目录
+# 沪深300数据目录
 
-本目录由对应的 `scripts/build_csi1000_dataset.py` 生成，主指数代码为 `000852.SH`。
+本目录由对应的 `scripts/build_csi300_dataset.py` 生成，主指数代码为 `000300.SH`。
 
 ## 文件
 
@@ -20,4 +20,4 @@ snapshot weights become usable on the next available trading day。
 ## 已知限制
 
 `total_return` 会使用配置中的候选全收益指数；如果本地未发现可用日线行情则留空。
-成分快照完整性按预期成员数 `1000` 和权重和区间 `[95, 105]` 标记，需结合 `quality_status` 和 `data_quality.csv` 使用。
+成分快照完整性按预期成员数 `300` 和权重和区间 `[95, 105]` 标记，需结合 `quality_status` 和 `data_quality.csv` 使用。
