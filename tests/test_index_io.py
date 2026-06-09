@@ -50,6 +50,10 @@ def market_metrics_header() -> str:
     )
 
 
+def constituent_header() -> str:
+    return "指数代码,成分股票代码,交易日期,权重\n"
+
+
 def build_index_root(root: Path) -> Path:
     basic_header = "指数代码,简称,市场,发布方,指数类别,基期,基点,发布日期\n"
     basic_rows = {
@@ -314,3 +318,56 @@ def test_constituents_members_resolve_provider_and_previous_snapshot(tmp_path: P
     assert df.iloc[0]["member_symbol"] == "600519.SH"
     assert df.iloc[0]["trade_date"] == pd.Timestamp("2026-01-31")
     assert df.iloc[0]["_source_kind"] == "zip"
+
+
+def test_constituent_quality_dates_skip_incomplete_snapshot_and_use_next_trade_date(tmp_path: Path) -> None:
+    root = build_index_root(tmp_path)
+    write_zip_csv(
+        root / "上交所指数成分" / "上交所指数成分_20251231.zip",
+        {
+            "000300.SH.csv": constituent_header()
+            + "000300.SH,000001.SZ,20251231,0.1\n"
+            + "000300.SH,000002.SZ,20251231,0.1\n"
+        },
+    )
+    write_zip_csv(
+        root / "上交所指数成分" / "上交所指数成分_20260102.zip",
+        {
+            "000300.SH.csv": constituent_header()
+            + "000300.SH,000001.SZ,20260102,50\n"
+            + "000300.SH,000002.SZ,20260102,30\n"
+            + "000300.SH,000003.SZ,20260102,20\n"
+        },
+    )
+    constituents = FinfactStore(index_data_dir=root).constituents
+
+    report = constituents.index_constituent_quality(
+        "000300.SH",
+        provider="sse",
+        expected_member_count=3,
+    )
+    same_day = constituents.index_constituent_quality(
+        "000300.SH",
+        provider="sse",
+        expected_member_count=3,
+        asof_policy="same_day",
+    )
+
+    assert report.first_available_snapshot_date == pd.Timestamp("2025-12-31")
+    assert report.first_valid_snapshot_date == pd.Timestamp("2026-01-02")
+    assert report.first_usable_trade_date == pd.Timestamp("2026-01-03")
+    assert same_day.first_usable_trade_date == pd.Timestamp("2026-01-02")
+
+    snapshots = report.snapshots.set_index("snapshot_date")
+    first = snapshots.loc[pd.Timestamp("2025-12-31")]
+    assert first["quality_status"] == "incomplete"
+    assert first["distinct_member_count"] == 2
+    assert first["weight_sum_pct"] == 0.2
+    assert first["weight_sum_ratio"] == 0.002
+    assert first["issue_codes"] == "low_member_count,low_weight_sum"
+
+    second = snapshots.loc[pd.Timestamp("2026-01-02")]
+    assert second["quality_status"] == "complete"
+    assert second["distinct_member_count"] == 3
+    assert second["weight_sum_pct"] == 100
+    assert second["issue_codes"] == ""

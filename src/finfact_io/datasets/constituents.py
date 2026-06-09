@@ -16,6 +16,7 @@ from finfact_io.readers.zip_csv import ZipCsvReader
 Provider = Literal["auto", "sse", "szse", "csi"]
 MatchMode = Literal["exact", "previous"]
 ValidationMode = Literal["none", "sample", "full"]
+AsofPolicy = Literal["next_trading_day", "same_day"]
 
 PROVIDER_DIRS: dict[str, str] = {
     "sse": "上交所指数成分",
@@ -39,6 +40,17 @@ class ConstituentsInitializationReport:
     root: Path
     validation: str
     providers: dict[str, ConstituentProviderReport]
+
+
+@dataclass(frozen=True)
+class IndexConstituentQualityReport:
+    index_code: str
+    provider: str
+    expected_member_count: int
+    first_available_snapshot_date: pd.Timestamp | None
+    first_valid_snapshot_date: pd.Timestamp | None
+    first_usable_trade_date: pd.Timestamp | None
+    snapshots: pd.DataFrame
 
 
 class ConstituentsStore:
@@ -148,6 +160,57 @@ class ConstituentsStore:
         result = pd.concat(frames, ignore_index=True)
         return finalize_columns(result.reset_index(drop=True), dataset="index_constituents", columns=columns)
 
+    def index_constituent_quality(
+        self,
+        index_code: str,
+        *,
+        expected_member_count: int,
+        provider: Provider = "auto",
+        start: str | pd.Timestamp | None = None,
+        end: str | pd.Timestamp | None = None,
+        weight_sum_bounds: tuple[float, float] = (95.0, 105.0),
+        asof_policy: AsofPolicy = "next_trading_day",
+    ) -> IndexConstituentQualityReport:
+        if expected_member_count <= 0:
+            raise ValueError("expected_member_count must be positive")
+        if asof_policy not in {"next_trading_day", "same_day"}:
+            raise ValueError("asof_policy must be one of: 'next_trading_day', 'same_day'")
+        lower_weight, upper_weight = weight_sum_bounds
+        if lower_weight > upper_weight:
+            raise ValueError("weight_sum_bounds lower bound must be <= upper bound")
+
+        provider_name = self._resolve_history_provider(index_code, provider=provider)
+        raw = self.index_member_snapshots(
+            index_code,
+            provider=provider_name,
+            start=start,
+            end=end,
+            columns="standard",
+            include_source=True,
+        )
+        snapshots = self._build_quality_snapshots(
+            raw,
+            expected_member_count=expected_member_count,
+            weight_sum_bounds=(float(lower_weight), float(upper_weight)),
+        )
+        first_available = _first_timestamp(snapshots["snapshot_date"])
+        valid = snapshots[snapshots["quality_status"] == "complete"]
+        first_valid = _first_timestamp(valid["snapshot_date"]) if not valid.empty else None
+        first_usable = (
+            self._first_usable_trade_date(index_code, first_valid, asof_policy=asof_policy)
+            if first_valid is not None
+            else None
+        )
+        return IndexConstituentQualityReport(
+            index_code=index_code,
+            provider=provider_name,
+            expected_member_count=expected_member_count,
+            first_available_snapshot_date=first_available,
+            first_valid_snapshot_date=first_valid,
+            first_usable_trade_date=first_usable,
+            snapshots=snapshots,
+        )
+
     def snapshot_manifest(
         self,
         *,
@@ -181,6 +244,92 @@ class ConstituentsStore:
                     }
                 )
         return pd.DataFrame(rows).sort_values(["provider", "snapshot_date"]).reset_index(drop=True)
+
+    def _build_quality_snapshots(
+        self,
+        raw: pd.DataFrame,
+        *,
+        expected_member_count: int,
+        weight_sum_bounds: tuple[float, float],
+    ) -> pd.DataFrame:
+        work = raw.copy()
+        work["snapshot_date"] = pd.to_datetime(work["snapshot_date"])
+        work["trade_date"] = pd.to_datetime(work["trade_date"])
+        work["_weight_numeric"] = pd.to_numeric(work["weight"], errors="coerce")
+        lower_weight, upper_weight = weight_sum_bounds
+
+        rows: list[dict[str, object]] = []
+        for snapshot_date, group in work.groupby("snapshot_date", sort=True, dropna=False):
+            weights = group["_weight_numeric"]
+            member_symbols = group["member_symbol"]
+            member_count = int(len(group))
+            distinct_member_count = int(member_symbols.nunique(dropna=True))
+            duplicate_member_rows = int(member_symbols.duplicated().sum())
+            weight_null_count = int(weights.isna().sum())
+            weight_sum_pct = float(weights.sum(skipna=True))
+            issue_codes = _quality_issue_codes(
+                distinct_member_count=distinct_member_count,
+                duplicate_member_rows=duplicate_member_rows,
+                weight_null_count=weight_null_count,
+                weight_sum_pct=weight_sum_pct,
+                expected_member_count=expected_member_count,
+                weight_sum_bounds=weight_sum_bounds,
+            )
+            first = group.iloc[0]
+            rows.append(
+                {
+                    "snapshot_date": pd.Timestamp(snapshot_date),
+                    "trade_date_min": pd.to_datetime(group["trade_date"]).min(),
+                    "trade_date_max": pd.to_datetime(group["trade_date"]).max(),
+                    "member_count": member_count,
+                    "distinct_member_count": distinct_member_count,
+                    "expected_member_count": expected_member_count,
+                    "duplicate_member_rows": duplicate_member_rows,
+                    "weight_sum_pct": weight_sum_pct,
+                    "weight_sum_ratio": weight_sum_pct / 100,
+                    "weight_sum_lower_bound_pct": lower_weight,
+                    "weight_sum_upper_bound_pct": upper_weight,
+                    "weight_null_count": weight_null_count,
+                    "quality_status": "complete" if not issue_codes else "incomplete",
+                    "issue_codes": ",".join(issue_codes),
+                    "_source_path": first.get("_source_path", pd.NA),
+                    "_source_member": first.get("_source_member", pd.NA),
+                    "_source_kind": first.get("_source_kind", pd.NA),
+                }
+            )
+
+        return pd.DataFrame(rows).sort_values("snapshot_date").reset_index(drop=True)
+
+    def _first_usable_trade_date(
+        self,
+        index_code: str,
+        snapshot_date: pd.Timestamp,
+        *,
+        asof_policy: AsofPolicy,
+    ) -> pd.Timestamp | None:
+        from finfact_io.errors import FinfactError
+        from finfact_io.datasets.index import IndexDataStore
+
+        try:
+            bars = IndexDataStore(self.root).bars(
+                index_code,
+                freq="day",
+                source="combined",
+                columns="standard",
+            )
+        except FinfactError:
+            return None
+
+        if bars.empty or "trade_date" not in bars.columns:
+            return None
+        trade_dates = pd.to_datetime(bars["trade_date"]).dropna().drop_duplicates().sort_values()
+        if asof_policy == "next_trading_day":
+            usable = trade_dates[trade_dates > snapshot_date]
+        else:
+            usable = trade_dates[trade_dates >= snapshot_date]
+        if usable.empty:
+            return None
+        return pd.Timestamp(usable.iloc[0])
 
     def _candidate_snapshots(
         self,
@@ -249,3 +398,34 @@ class ConstituentsStore:
     def _require_root(self) -> None:
         if not self.root.is_dir():
             raise DataRootNotFoundError(f"Index data root not found: {self.root}")
+
+
+def _first_timestamp(series: pd.Series) -> pd.Timestamp | None:
+    values = pd.to_datetime(series).dropna()
+    if values.empty:
+        return None
+    return pd.Timestamp(values.min())
+
+
+def _quality_issue_codes(
+    *,
+    distinct_member_count: int,
+    duplicate_member_rows: int,
+    weight_null_count: int,
+    weight_sum_pct: float,
+    expected_member_count: int,
+    weight_sum_bounds: tuple[float, float],
+) -> list[str]:
+    lower_weight, upper_weight = weight_sum_bounds
+    issues: list[str] = []
+    if distinct_member_count < expected_member_count:
+        issues.append("low_member_count")
+    if duplicate_member_rows > 0:
+        issues.append("duplicate_members")
+    if weight_null_count > 0:
+        issues.append("invalid_weight")
+    if weight_sum_pct < lower_weight:
+        issues.append("low_weight_sum")
+    elif weight_sum_pct > upper_weight:
+        issues.append("high_weight_sum")
+    return issues
