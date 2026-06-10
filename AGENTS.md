@@ -10,7 +10,24 @@
 
 ## 当前运行环境
 
-当前项目环境由 `uv` 创建：
+当前项目环境由 `uv` 创建。Windows PowerShell 下当前观察到的环境为：
+
+```powershell
+uv venv
+Using CPython 3.12.13
+Creating virtual environment at: .venv
+Activate with: .venv\Scripts\activate
+```
+
+在 Windows PowerShell 中，如果脚本执行策略阻止激活虚拟环境，先在当前进程临时放开执行策略，再进入虚拟环境：
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
+.\.venv\Scripts\Activate.ps1
+python --version
+```
+
+macOS/Linux 环境路径保持不变：
 
 ```bash
 uv venv
@@ -19,7 +36,17 @@ Creating virtual environment at: .venv
 Activate with: source .venv/bin/activate
 ```
 
-已观察到的 `.venv/pyvenv.cfg` 信息：
+Windows 下已观察到的 `.venv/pyvenv.cfg` 信息：
+
+```text
+implementation = CPython
+uv = 0.11.18
+version_info = 3.12.13
+include-system-site-packages = false
+prompt = finfact_io
+```
+
+macOS/Linux 下已观察到的 `.venv/pyvenv.cfg` 信息：
 
 ```text
 implementation = CPython
@@ -29,7 +56,15 @@ include-system-site-packages = false
 prompt = finfact-io
 ```
 
-工作时优先使用：
+工作时优先按当前系统选择对应激活方式。Windows PowerShell 优先使用：
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
+.\.venv\Scripts\Activate.ps1
+python --version
+```
+
+macOS/Linux 优先使用：
 
 ```bash
 source .venv/bin/activate
