@@ -2,6 +2,17 @@
 
 Python IO utilities for local financial text datasets.
 
+## Raw data roots
+
+Raw source data defaults to `/data/A-share/raw_data_tb`. `FinfactStore()` derives
+the A-share daily root from `A股数据_每日指标/` and the index root from `指数数据/`
+under that directory.
+
+Override discovery with `FINFACT_RAW_DATA_DIR` for the parent directory, or use
+`FINFACT_ASHARE_DAILY_DIR` and `FINFACT_INDEX_DATA_DIR` for dataset-specific
+roots. Explicit constructor arguments and script flags take precedence over
+environment variables.
+
 ## Read generated data directory
 
 Use `DataDirectoryReader` to read the generated datasets under the current

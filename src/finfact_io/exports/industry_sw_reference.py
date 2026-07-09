@@ -8,7 +8,7 @@ from typing import Mapping, Sequence
 
 import pandas as pd
 
-from finfact_io.config import DEFAULT_ASHARE_DAILY_DIR, DEFAULT_INDEX_DATA_DIR, PathLike
+from finfact_io.config import PathLike, resolve_ashare_daily_dir, resolve_index_data_dir
 from finfact_io.errors import DataFileNotFoundError, SchemaError
 from finfact_io.readers.csv import parse_date_value, read_csv_file
 
@@ -55,10 +55,8 @@ def build_industry_sw_reference_dataset(
     output_dir: PathLike | None = None,
     snapshot_date: str | pd.Timestamp = SW_REFERENCE_SNAPSHOT_DATE,
 ) -> IndustrySwReferenceBuildReport:
-    source_root = Path(index_data_dir).expanduser() if index_data_dir is not None else DEFAULT_INDEX_DATA_DIR
-    ashare_root = (
-        Path(ashare_daily_dir).expanduser() if ashare_daily_dir is not None else DEFAULT_ASHARE_DAILY_DIR
-    )
+    source_root = resolve_index_data_dir(index_data_dir)
+    ashare_root = resolve_ashare_daily_dir(ashare_daily_dir)
     target = Path(output_dir).expanduser() if output_dir is not None else DEFAULT_OUTPUT_DIR
     target.mkdir(parents=True, exist_ok=True)
 

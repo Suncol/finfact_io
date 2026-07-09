@@ -83,27 +83,29 @@ uv run pytest
 
 ## 数据源目录
 
-必须重点读取和理解下面两个本地目录：
+必须重点读取和理解下面这个本地原始数据总目录，以及其中两个核心子目录：
 
 ```text
-/Users/sun/Downloads/指数数据
-/Users/sun/Downloads/A股数据_每日指标
+/data/A-share/raw_data_tb
+/data/A-share/raw_data_tb/指数数据
+/data/A-share/raw_data_tb/A股数据_每日指标
 ```
 
-这两个目录在仓库外部，是本项目的原始数据源目录。代码可以读取它们，但不要把大型 zip 或 CSV 原始数据复制进仓库；不要在这些源目录里写入、覆盖、删除文件，除非用户明确要求。
+这些目录在仓库外部，是本项目的原始数据源目录。代码可以读取它们，但不要把大型 zip 或 CSV 原始数据复制进仓库；不要在这些源目录里写入、覆盖、删除文件，除非用户明确要求。
 
 建议后续库支持显式传入数据根目录，并支持环境变量覆盖：
 
 ```text
-FINFACT_INDEX_DATA_DIR=/Users/sun/Downloads/指数数据
-FINFACT_ASHARE_DAILY_DIR=/Users/sun/Downloads/A股数据_每日指标
+FINFACT_RAW_DATA_DIR=/data/A-share/raw_data_tb
+FINFACT_INDEX_DATA_DIR=/data/A-share/raw_data_tb/指数数据
+FINFACT_ASHARE_DAILY_DIR=/data/A-share/raw_data_tb/A股数据_每日指标
 ```
 
-默认路径可以指向上述本地目录，但 API 设计上不要把路径写死到深层函数里。应通过一个统一的 catalog/config/path resolver 管理路径。
+默认路径应指向上述 `/data/A-share/raw_data_tb` 原始数据总目录，并由统一的 catalog/config/path resolver 派生核心子目录。路径优先级应为：显式传入的具体数据集目录、具体数据集环境变量、`FINFACT_RAW_DATA_DIR` 下的约定子目录、包内默认路径。API 设计上不要把路径写死到深层函数里。
 
 ## 已观察到的数据布局
 
-### `/Users/sun/Downloads/A股数据_每日指标`
+### `/data/A-share/raw_data_tb/A股数据_每日指标`
 
 顶层包含：
 
@@ -121,10 +123,11 @@ FINFACT_ASHARE_DAILY_DIR=/Users/sun/Downloads/A股数据_每日指标
 
 - `股票列表.csv` 与 `退市股票列表.csv` 是 UTF-8 BOM CSV，表头包括 `TS代码`、`股票代码`、`股票名称`、`地域`、`所属行业`、`股票全称`、`英文全称`、`拼音缩写`、`市场类型`、`交易所代码`、`交易货币`、`上市状态`、`上市日期`、`退市日期`、`沪深港通标的`、`实控人名称`、`实控人企业性质`。
 - `交易日历.csv` 表头为 `交易所`、`日期`、`是否交易`、`上一个交易日`，日期格式是 `YYYY-MM-DD`。
-- `每日指标.zip` 是按股票代码分文件的历史包，zip 内有 5849 个 CSV，例如 `000001.SZ.csv`、`000002.SZ.csv`、`688001.SH.csv`、`920992.BJ.csv`。
-- `技术因子_前复权.zip` 和 `技术因子_后复权.zip` 也是按股票代码分文件，zip 内均为 5849 个 CSV。
+- `每日指标.zip` 是按股票代码分文件的历史包，zip 内有 5861 个 CSV，例如 `000001.SZ.csv`、`000002.SZ.csv`、`688001.SH.csv`、`920992.BJ.csv`。
+- `技术因子_前复权.zip` 和 `技术因子_后复权.zip` 也是按股票代码分文件，zip 内均为 5860 个 CSV。
 - `增量数据/每日指标/<YYYY-MM>/<YYYYMMDD>.csv` 是按交易日分文件，例如 `增量数据/每日指标/2026-06/20260603.csv`。
-- `增量数据/技术因子_后复权/<YYYY-MM>/技术因子_<YYYYMMDD>.csv` 是按交易日分文件。当前未观察到 `增量数据/技术因子_前复权` 目录，不能假设它一定存在。
+- `增量数据/每日指标` 当前已观察到 8679 个按日文件，日期范围为 1990-12-19 到 2026-07-08。
+- `增量数据/技术因子_后复权/<YYYY-MM>/技术因子_<YYYYMMDD>.csv` 是按交易日分文件，当前已观察到日期范围为 2026-05-22 到 2026-07-08。当前未观察到 `增量数据/技术因子_前复权` 目录，不能假设它一定存在。
 
 `每日指标.zip` 内单个股票 CSV 表头包括：
 
@@ -155,7 +158,7 @@ FINFACT_ASHARE_DAILY_DIR=/Users/sun/Downloads/A股数据_每日指标
 (股票代码, 交易日期, 复权类型)
 ```
 
-### `/Users/sun/Downloads/指数数据`
+### `/data/A-share/raw_data_tb/指数数据`
 
 顶层包含指数基本信息、指数/行业行情 zip、行业分类、指数成分、增量数据等：
 
@@ -190,7 +193,7 @@ FINFACT_ASHARE_DAILY_DIR=/Users/sun/Downloads/A股数据_每日指标
 
 读取 CSV 时仍应保留备用编码和清晰错误信息：优先尝试 `utf-8-sig`，失败再尝试 `utf-8`、`gb18030` 或可配置编码；如果必须容错替换字符，应记录 warning，不要静默吞掉编码问题。
 
-`指数日线行情.zip` 是按指数代码分文件的历史包，zip 内有 3938 个 CSV，例如：
+`指数日线行情.zip` 是按指数代码分文件的历史包，zip 内有 6947 个 CSV，例如：
 
 ```text
 000001.SH.csv
@@ -242,7 +245,7 @@ h30001.CSI.csv
 (指数代码, 交易日期)
 ```
 
-`中信行业日线行情.zip` 是按中信行业指数代码分文件，zip 内有 417 个 CSV。表头包括：
+`中信行业日线行情.zip` 是按中信行业指数代码分文件，zip 内有 582 个 CSV。表头包括：
 
 ```text
 指数代码,交易日期,开盘点位,最高点位,最低点位,收盘点位,
@@ -277,7 +280,7 @@ h30001.CSI.csv
 股票代码,股票名称,纳入日期,剔除日期
 ```
 
-`上交所指数成分/`、`深交所指数成分/`、`中证指数成分/` 是按成分日期打包的 zip 目录。已观察到最新样本为 `*_20260430.zip`，zip 内再按指数代码分 CSV。表头为：
+`上交所指数成分/`、`深交所指数成分/`、`中证指数成分/` 是按成分日期打包的 zip 目录。已观察到最新样本为 `*_20260630.zip`，zip 内再按指数代码分 CSV。表头为：
 
 ```text
 指数代码,成分股票代码,交易日期,权重
@@ -298,7 +301,7 @@ h30001.CSI.csv
 中信行业日线行情/
 ```
 
-增量目录通常按 `<YYYY-MM>/<YYYYMMDD>_指数日线行情.csv` 组织，是按交易日聚合的横截面文件。读取历史包与增量数据时，必须考虑同一主键重复的情况；如果历史包和增量文件都有同一条记录，应明确去重策略，通常以增量文件为较新来源优先。
+增量目录通常按 `<YYYY-MM>/<YYYYMMDD>_指数日线行情.csv` 组织，是按交易日聚合的横截面文件。当前已观察到 `指数日线行情` 增量日期范围为 2026-01-02 到 2026-07-08，`大盘指数每日指标` 为 2025-09-19 到 2026-07-08，`申万行业日线行情` 为 2025-09-19 到 2026-07-08，`中信行业日线行情` 为 2019-11-29 到 2026-07-08。读取历史包与增量数据时，必须考虑同一主键重复的情况；如果历史包和增量文件都有同一条记录，应明确去重策略，通常以增量文件为较新来源优先。
 
 ## 数据读取原则
 
@@ -372,8 +375,7 @@ finfact-io/
 from finfact_io import FinfactStore
 
 store = FinfactStore(
-    index_data_dir="/Users/sun/Downloads/指数数据",
-    ashare_daily_dir="/Users/sun/Downloads/A股数据_每日指标",
+    raw_data_dir="/data/A-share/raw_data_tb",
 )
 
 df = store.ashare.daily_metrics("000001.SZ", start="2024-01-01", end="2024-12-31")
@@ -381,7 +383,7 @@ df = store.ashare.technical_factors("000001.SZ", adjustment="qfq")
 df = store.index.market_metrics("000300.SH", start="2020-01-01")
 df = store.index.bars("000300.SH", freq="day")
 df = store.industry.sw_daily("801010.SI")
-df = store.constituents.index_members("000300.SH", date="2026-04-30")
+df = store.constituents.index_members("000300.SH", date="2026-06-30")
 ```
 
 返回值可优先选择 `pandas.DataFrame`，但底层读取层不要和 pandas 过度耦合；如果数据量较大，后续可以支持 `polars` 或 `pyarrow`。无论返回什么结构，都必须提供原始中文列名可用性，并可以选择输出规范化英文字段。
@@ -452,8 +454,9 @@ uv run python -m finfact_io...
 ```bash
 python - <<'PY'
 from pathlib import Path
-print(Path('/Users/sun/Downloads/指数数据').exists())
-print(Path('/Users/sun/Downloads/A股数据_每日指标').exists())
+print(Path('/data/A-share/raw_data_tb').exists())
+print(Path('/data/A-share/raw_data_tb/指数数据').exists())
+print(Path('/data/A-share/raw_data_tb/A股数据_每日指标').exists())
 PY
 ```
 

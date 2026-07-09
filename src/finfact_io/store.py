@@ -15,10 +15,13 @@ class FinfactStore:
         self,
         ashare_daily_dir: PathLike | None = None,
         index_data_dir: PathLike | None = None,
+        *,
+        raw_data_dir: PathLike | None = None,
     ) -> None:
         self.config = FinfactConfig.from_values(
             ashare_daily_dir=ashare_daily_dir,
             index_data_dir=index_data_dir,
+            raw_data_dir=raw_data_dir,
         )
 
     @cached_property

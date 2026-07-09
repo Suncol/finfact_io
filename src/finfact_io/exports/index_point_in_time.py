@@ -9,7 +9,7 @@ from typing import Literal
 
 import pandas as pd
 
-from finfact_io.config import DEFAULT_INDEX_DATA_DIR, PathLike
+from finfact_io.config import PathLike, resolve_index_data_dir
 from finfact_io.errors import FinfactError
 from finfact_io.store import FinfactStore
 
@@ -170,7 +170,7 @@ def build_index_point_in_time_dataset(
     if spec.expected_member_count <= 0:
         raise ValueError("expected_member_count must be positive.")
 
-    root = Path(index_data_dir).expanduser() if index_data_dir is not None else DEFAULT_INDEX_DATA_DIR
+    root = resolve_index_data_dir(index_data_dir)
     target = Path(output_dir).expanduser() if output_dir is not None else spec.default_output_dir
     target.mkdir(parents=True, exist_ok=True)
 

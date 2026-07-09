@@ -21,7 +21,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--index-dir",
         type=Path,
         default=None,
-        help="Index data root. Defaults to FINFACT_INDEX_DATA_DIR or the package default.",
+        help=(
+            "Index data root. Defaults to FINFACT_INDEX_DATA_DIR, "
+            "then FINFACT_RAW_DATA_DIR/指数数据, then the package default."
+        ),
     )
     parser.add_argument(
         "--output-dir",

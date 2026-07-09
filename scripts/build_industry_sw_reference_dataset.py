@@ -13,10 +13,32 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Build the static SW2021 current industry reference dataset."
     )
-    parser.add_argument("--index-data-dir", default=None)
-    parser.add_argument("--ashare-daily-dir", default=None)
-    parser.add_argument("--output-dir", default=None)
-    parser.add_argument("--snapshot-date", default=SW_REFERENCE_SNAPSHOT_DATE)
+    parser.add_argument(
+        "--index-data-dir",
+        default=None,
+        help=(
+            "Index data root. Defaults to FINFACT_INDEX_DATA_DIR, "
+            "then FINFACT_RAW_DATA_DIR/指数数据, then the package default."
+        ),
+    )
+    parser.add_argument(
+        "--ashare-daily-dir",
+        default=None,
+        help=(
+            "A-share daily data root. Defaults to FINFACT_ASHARE_DAILY_DIR, "
+            "then FINFACT_RAW_DATA_DIR/A股数据_每日指标, then the package default."
+        ),
+    )
+    parser.add_argument(
+        "--output-dir",
+        default=None,
+        help="Output directory. Defaults to data/industry_sw_current_reference.",
+    )
+    parser.add_argument(
+        "--snapshot-date",
+        default=SW_REFERENCE_SNAPSHOT_DATE,
+        help="SW member snapshot date to use.",
+    )
     args = parser.parse_args()
 
     report = build_industry_sw_reference_dataset(

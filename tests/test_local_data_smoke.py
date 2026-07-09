@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 import pytest
 
@@ -13,8 +12,7 @@ from finfact_io import FinfactStore
     reason="local source data smoke tests are opt-in",
 )
 def test_local_ashare_daily_data_smoke() -> None:
-    root = Path(os.environ.get("FINFACT_ASHARE_DAILY_DIR", "/Users/sun/Downloads/A股数据_每日指标"))
-    store = FinfactStore(ashare_daily_dir=root)
+    store = FinfactStore()
 
     report = store.ashare.initialize(validation="sample")
     df = store.ashare.daily_metrics("000001.SZ", start="2024-01-01", end="2024-01-31")
@@ -28,8 +26,7 @@ def test_local_ashare_daily_data_smoke() -> None:
     reason="local source data smoke tests are opt-in",
 )
 def test_local_index_data_smoke() -> None:
-    root = Path(os.environ.get("FINFACT_INDEX_DATA_DIR", "/Users/sun/Downloads/指数数据"))
-    store = FinfactStore(index_data_dir=root)
+    store = FinfactStore()
 
     index_report = store.index.initialize(validation="sample")
     info = store.index.basic_info("sse", columns="standard")

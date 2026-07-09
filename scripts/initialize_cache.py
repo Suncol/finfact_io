@@ -20,13 +20,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--ashare-dir",
         type=Path,
         default=None,
-        help="A-share daily data root. Defaults to FINFACT_ASHARE_DAILY_DIR or the package default.",
+        help=(
+            "A-share daily data root. Defaults to FINFACT_ASHARE_DAILY_DIR, "
+            "then FINFACT_RAW_DATA_DIR/A股数据_每日指标, then the package default."
+        ),
     )
     parser.add_argument(
         "--index-dir",
         type=Path,
         default=None,
-        help="Index data root. Defaults to FINFACT_INDEX_DATA_DIR or the package default.",
+        help=(
+            "Index data root. Defaults to FINFACT_INDEX_DATA_DIR, "
+            "then FINFACT_RAW_DATA_DIR/指数数据, then the package default."
+        ),
     )
     parser.add_argument(
         "--cache-dir",

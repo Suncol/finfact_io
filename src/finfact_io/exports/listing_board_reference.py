@@ -9,7 +9,7 @@ from typing import Iterable
 
 import pandas as pd
 
-from finfact_io.config import DEFAULT_ASHARE_DAILY_DIR, PathLike
+from finfact_io.config import PathLike, resolve_ashare_daily_dir
 from finfact_io.readers.csv import read_csv_file
 
 DEFAULT_OUTPUT_DIR = Path("data") / "listing_board_current_reference"
@@ -82,7 +82,7 @@ def build_listing_board_reference_dataset(
     ashare_daily_dir: PathLike | None = None,
     output_dir: PathLike | None = None,
 ) -> ListingBoardReferenceBuildReport:
-    source_root = Path(ashare_daily_dir).expanduser() if ashare_daily_dir is not None else DEFAULT_ASHARE_DAILY_DIR
+    source_root = resolve_ashare_daily_dir(ashare_daily_dir)
     target = Path(output_dir).expanduser() if output_dir is not None else DEFAULT_OUTPUT_DIR
     if target.exists():
         shutil.rmtree(target)

@@ -14,10 +14,29 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Build all A-share daily metrics organized by trading day."
     )
-    parser.add_argument("--ashare-daily-dir", default=None)
-    parser.add_argument("--output-dir", default=None)
-    parser.add_argument("--start", default=DEFAULT_START_DATE)
-    parser.add_argument("--end", default=DEFAULT_END_DATE)
+    parser.add_argument(
+        "--ashare-daily-dir",
+        default=None,
+        help=(
+            "A-share daily data root. Defaults to FINFACT_ASHARE_DAILY_DIR, "
+            "then FINFACT_RAW_DATA_DIR/A股数据_每日指标, then the package default."
+        ),
+    )
+    parser.add_argument(
+        "--output-dir",
+        default=None,
+        help="Output directory. Defaults to data/ashare_daily_metrics.",
+    )
+    parser.add_argument(
+        "--start",
+        default=DEFAULT_START_DATE,
+        help="Start date, YYYY-MM-DD or YYYYMMDD.",
+    )
+    parser.add_argument(
+        "--end",
+        default=DEFAULT_END_DATE,
+        help="End date, YYYY-MM-DD or YYYYMMDD.",
+    )
     args = parser.parse_args()
 
     report = build_ashare_daily_metrics_dataset(

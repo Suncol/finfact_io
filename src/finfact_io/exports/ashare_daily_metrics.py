@@ -11,7 +11,7 @@ from typing import Iterable
 
 import pandas as pd
 
-from finfact_io.config import DEFAULT_ASHARE_DAILY_DIR, PathLike
+from finfact_io.config import PathLike, resolve_ashare_daily_dir
 from finfact_io.fields import DAILY_METRIC_ALIASES, FIELD_UNITS_RAW, standardize_columns
 from finfact_io.readers.csv import parse_date_value, read_csv_file, read_csv_bytes
 
@@ -39,7 +39,7 @@ def build_ashare_daily_metrics_dataset(
     start: str | pd.Timestamp | None = DEFAULT_START_DATE,
     end: str | pd.Timestamp | None = DEFAULT_END_DATE,
 ) -> AShareDailyMetricsBuildReport:
-    source_root = Path(ashare_daily_dir).expanduser() if ashare_daily_dir is not None else DEFAULT_ASHARE_DAILY_DIR
+    source_root = resolve_ashare_daily_dir(ashare_daily_dir)
     target = Path(output_dir).expanduser() if output_dir is not None else DEFAULT_OUTPUT_DIR
     target.mkdir(parents=True, exist_ok=True)
     daily_dir = target / "daily_metrics"
